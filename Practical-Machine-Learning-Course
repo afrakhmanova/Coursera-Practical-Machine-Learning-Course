@@ -1,0 +1,125 @@
+---
+title: "Practical Machine Learning Course: Final Project"
+author: "Rakhmanova Amina"
+output:
+  html_document:
+  df_print: paged
+---
+
+# Overview
+
+This document is the final report of the Peer Assessment project from Coursera’s course Practical Machine Learning, as part of the Specialization in Data Science. 
+
+This analysis is the basis for the course quiz and a prediction assignment writeup. The main goal of the project is to predict the manner in which 6 participants performed some exercise as described below. This is the “classe” variable in the training set. 
+
+  A: exactly according to the specification
+  B: throwing the elbows to the front
+  C: lifting the dumbbell only halfway
+  D: lowering the dumbbell only halfway 
+  E: throwing the hips to the front
+
+```{r message = FALSE, warning=FALSE, echo = F, comment = ""}
+library(dplyr)
+library(knitr)
+library(caret)
+library(rattle)
+library(randomForest)
+library(corrplot)
+library(gbm)
+```
+
+
+# Dataset
+
+The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har.
+
+The training data for this project are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv 
+
+The test data are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+```{r message = FALSE, warning=FALSE, echo = F, comment = ""}
+library(readr)
+
+training = read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+testing = read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+```
+
+We need to get rid off the variables which have plenty of NA. In addition, we'll remove  Near Zero variance and identification variables.
+
+```{r}
+NZV = nearZeroVar(training)
+training = training[, -NZV]
+testing = testing[, -NZV]
+
+na = sapply(training, function(x) mean(is.na(x))) > 0.95
+training = training[, na==FALSE]
+testing = testing[, na==FALSE]
+
+training = training[, -(1:5)]
+testing = testing[, -(1:5)]
+
+dim(training)
+dim(testing)
+```
+
+```{r}
+set.seed(1)
+intrain = createDataPartition(training$classe, p=0.8, list=FALSE)
+train = training[intrain, ]
+test = training[-intrain, ]
+
+dim(train)
+dim(test)
+```
+
+
+# Prediction model building
+
+Random Forests and Generalized Boosted Model will be applied to model the regressions and the best one will be used for the quiz predictions. 
+
+A Confusion Matrix is plotted at the end of each analysis to better visualize the accuracy of the models.
+
+## Random Forest method
+
+```{r}
+set.seed(1)
+controlRF = trainControl(method="cv", number=3, verboseIter=FALSE)
+modFitRF = train(classe ~ ., data=train, method="rf", trControl=controlRF)
+modFitRF$finalModel
+```
+
+```{r}
+predictRF = predict(modFitRF, newdata=test)
+test$classe = as.factor(test$classe)
+confMatRF = confusionMatrix(predictRF, test$classe)
+confMatRF$overall
+```
+
+
+## Generalized Boosted Model 
+
+```{r}
+set.seed(1)
+controlGBM = trainControl(method = "repeatedcv", number = 5, repeats = 1)
+modFitGBM  = train(classe ~ ., data=train, method = "gbm", trControl = controlGBM, verbose = FALSE)
+modFitGBM$finalModel
+```
+
+```{r}
+predictGBM = predict(modFitGBM, newdata=test)
+confMatGBM = confusionMatrix(predictGBM, test$classe)
+confMatGBM$overall
+```
+
+
+## Comparison
+
+We have analyzed two representation models. The first one proved to be the best with accuracy 0,999. That's why we will use Random forest to predict the 20 quiz results.
+
+
+# Prediction Assignment
+
+```{r}
+pred_test = predict(modFitRF, newdata=testing)
+pred_test
+```
